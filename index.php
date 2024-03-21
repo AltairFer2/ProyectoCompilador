@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
+<body>    
     <div id="TableContainer">
         <table id="tokenTable" class="tokenTable">
         </table>
@@ -17,7 +17,7 @@
     <div class="editor-errors-container">
         <div id="editor"></div>
         <div id="errorSection"></div>
-    </div>
+    </div>   
     <script type="module" src="js/editor.js"></script>
 
 </body>

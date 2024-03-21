@@ -2,12 +2,54 @@ import { tokenDescriptions } from './tokenDescriptions.js';
 import { editor } from './editor.js';
 import { traducirTipoToken } from './utils.js';
 
+function aNotacionPolacaInversa(nodo) {
+    if (!nodo) return '';
+    switch (nodo.type) {
+        case 'Literal':
+            return nodo.value.toString();
+        case 'BinaryExpression':
+            const izquierda = aNotacionPolacaInversa(nodo.left);
+            const derecha = aNotacionPolacaInversa(nodo.right);
+            return `${izquierda} ${derecha} ${nodo.operator}`;
+        // Agrega más casos según sea necesario.
+        default:
+            return '';
+    }
+}
+
+function encontrarPrimerExpresionBinaria(nodo) {
+    if (nodo.type === 'BinaryExpression') {
+        return nodo;
+    }
+
+    for (let prop in nodo) {
+        if (nodo.hasOwnProperty(prop) && typeof nodo[prop] === 'object') {
+            let resultado = encontrarPrimerExpresionBinaria(nodo[prop]);
+            if (resultado) return resultado;
+        }
+    }
+
+    return null;
+}
+
+
 export function updateAnalysis() {
     const code = editor.getValue();
     document.getElementById("errorSection").innerHTML = '';
     try {
         esprima.parseScript(code);
         const tokens = esprima.tokenize(code, { range: true });
+
+        const ast = esprima.parseScript(code);
+
+        const expresionBinaria = encontrarPrimerExpresionBinaria(ast);
+
+        if (expresionBinaria) {
+            const expresionNPI = aNotacionPolacaInversa(expresionBinaria);
+            document.getElementById("errorSection").innerHTML = `<span class="success-message">Expresión en Notación Polaca Inversa: ${expresionNPI}</span>`;
+        } else if (document.getElementById("errorSection").innerHTML === '') {
+            document.getElementById("errorSection").innerHTML = '<span class="success-message">Tu código compila correctamente</span>';
+        }
 
         let tokenTable = document.getElementById("tokenTable");
         tokenTable.innerHTML = "";
@@ -51,9 +93,22 @@ export function updateAnalysis() {
             cellDescripcion.textContent = description;
         }
 
-        document.getElementById("errorSection").innerHTML = '<span class="success-message">Tu código compila correctamente</span>';
+
+
+
     } catch (error) {
-        document.getElementById("errorSection").innerHTML = '<span class="error-message">' + error.message + '</span>';
+        let errorMessage;
+        // Revisa si el mensaje de error se ajusta a patrones conocidos de errores léxicos
+        if (error.message.includes('Invalid or unexpected token')) {
+            errorMessage = `<span class="error-message">Error léxico: token inválido o inesperado. ${error.message}</span>`;
+        } else if (error.message.includes('Unexpected character')) {
+            errorMessage = `<span class="error-message">Error léxico: carácter inesperado. ${error.message}</span>`;
+            // Añade más condiciones según sea necesario
+        } else {
+            // Asume que cualquier otro tipo de error es sintáctico
+            errorMessage = `<span class="error-message">Error sintáctico: ${error.message}</span>`;
+        }
+        document.getElementById("errorSection").innerHTML = errorMessage;
     }
 }
 
