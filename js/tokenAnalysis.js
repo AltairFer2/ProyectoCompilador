@@ -2,6 +2,11 @@ import { tokenDescriptions } from './tokenDescriptions.js';
 import { editor } from './editor.js';
 import { traducirTipoToken } from './utils.js';
 
+const scopeStack = [];
+const variablesDeclaradas = new Set();
+const variablesUsadas = new Set();
+const errores = [];
+
 function aNotacionPolacaInversa(nodo) {
     if (!nodo) return '';
     switch (nodo.type) {
@@ -32,15 +37,117 @@ function encontrarPrimerExpresionBinaria(nodo) {
     return null;
 }
 
+function entrarScope() {
+    scopeStack.push(new Set());
+}
+
+function salirScope() {
+    scopeStack.pop();
+}
+
+function declararVariable(nombre) {
+    if (scopeStack.length > 0) {
+        scopeStack[scopeStack.length - 1].add(nombre);
+    }
+    variablesDeclaradas.add(nombre);
+}
+
+function usarVariable(nombre) {
+    for (let i = scopeStack.length - 1; i >= 0; i--) {
+        if (scopeStack[i].has(nombre)) {
+            variablesUsadas.add(nombre);
+            return true;
+        }
+    }
+    errores.push(`Error semántico: La variable '${nombre}' no está declarada.`);
+    return false;
+}
+
+function validarUsoDeVariables(nodo) {
+    if (!nodo) return;
+    switch (nodo.type) {
+        case 'VariableDeclaration':
+            entrarScope();
+            nodo.declarations.forEach(decl => {
+                if (decl.id && decl.id.name) {
+                    declararVariable(decl.id.name);
+                }
+            });
+            salirScope();
+            break;
+        case 'Identifier':
+            usarVariable(nodo.name);
+            break;
+    }
+    for (let prop in nodo) {
+        if (nodo.hasOwnProperty(prop) && typeof nodo[prop] === 'object') {
+            validarUsoDeVariables(nodo[prop]);
+        }
+    }
+}
+
+function determinarTipo(nodo) {
+    switch (nodo.type) {
+        case 'Literal':
+            if (typeof nodo.value === 'number') return 'number';
+            if (typeof nodo.value === 'boolean') return 'boolean';
+            if (typeof nodo.value === 'string') return 'string';
+            return 'unknown';
+        case 'Identifier':
+            // Lógica simplificada para retornar un tipo predefinido
+            return 'number';
+        default:
+            return 'unknown';
+    }
+}
+
+function validarExpresiones(nodo) {
+    if (!nodo) return;
+    if (nodo.type === 'BinaryExpression') {
+        const tipoIzq = determinarTipo(nodo.left);
+        const tipoDer = determinarTipo(nodo.right);
+
+        if (['+', '-', '*', '/', '%'].includes(nodo.operator)) {
+            if (tipoIzq !== 'number' || tipoDer !== 'number') {
+                errores.push(`Error de tipo: Operación aritmética ${nodo.operator} entre tipos no numéricos.`);
+            }
+        } else if (['&&', '||'].includes(nodo.operator)) {
+            if (tipoIzq !== 'boolean' || tipoDer !== 'boolean') {
+                errores.push(`Error de tipo: Operación booleana ${nodo.operator} entre tipos no booleanos.`);
+            }
+        }
+        // Sobrecarga del operador '+'
+        if (nodo.operator === '+' && (tipoIzq === 'string' || tipoDer === 'string')) {
+            console.log('Warning: Sobrecarga del operador + para concatenación de cadenas.');
+        }
+    }
+    validarExpresiones(nodo.left);
+    validarExpresiones(nodo.right);
+}
+
+function mostrarWarnings() {
+    // Variables declaradas pero no usadas
+    variablesDeclaradas.forEach(varName => {
+        if (!variablesUsadas.has(varName)) {
+            console.log(`Warning: La variable '${varName}' está declarada pero no usada.`);
+        }
+    });
+}
+
 
 export function updateAnalysis() {
     const code = editor.getValue();
     document.getElementById("errorSection").innerHTML = '';
     try {
-        esprima.parseScript(code);
-        const tokens = esprima.tokenize(code, { range: true });
+        const ast = esprima.parseScript(code, { tolerant: true });
+        validarUsoDeVariables(ast);
+        validarExpresiones(ast);
 
-        const ast = esprima.parseScript(code);
+        // Mostrar errores acumulados
+        errores.forEach(error => {
+            const errorMessage = `<span class="error-message">${error}</span>`;
+            document.getElementById("errorSection").innerHTML += errorMessage + '<br>';
+        });
 
         const expresionBinaria = encontrarPrimerExpresionBinaria(ast);
 
@@ -51,8 +158,12 @@ export function updateAnalysis() {
             document.getElementById("errorSection").innerHTML = '<span class="success-message">Tu código compila correctamente</span>';
         }
 
+        // Mostrar advertencias
+        mostrarWarnings();
+
+        const tokens = esprima.tokenize(code, { range: true });
         let tokenTable = document.getElementById("tokenTable");
-        tokenTable.innerHTML = "";
+        tokenTable.innerHTML = '';
 
         let headerRow = tokenTable.insertRow(-1);
         let headers = ["Tipo de Token", "Valor", "Descripción"];
@@ -62,39 +173,17 @@ export function updateAnalysis() {
             headerRow.appendChild(headerCell);
         });
 
-        for (let i = 0; i < tokens.length; i++) {
-            let token = tokens[i];
-            let valorToken = token.value;
-            let tipoTokenEspañol = traducirTipoToken(token.type);
-            let description = tokenDescriptions[token.type] || 'Descripción no disponible';
-
-            if (token.type === 'Punctuator') {
-                if (['(', '{', '['].includes(token.value)) {
-                    for (let j = i + 1; j < tokens.length; j++) {
-                        if ((token.value === '(' && tokens[j].value === ')') ||
-                            (token.value === '{' && tokens[j].value === '}') ||
-                            (token.value === '[' && tokens[j].value === ']')) {
-                            valorToken += tokens[j].value;
-                            i = j;
-                            break;
-                        }
-                    }
-                }
-            }
-
+        tokens.forEach(token => {
             let row = tokenTable.insertRow(-1);
             let cellTipo = row.insertCell(0);
-            cellTipo.textContent = tipoTokenEspañol;
+            cellTipo.textContent = traducirTipoToken(token.type);
 
             let cellValor = row.insertCell(1);
-            cellValor.textContent = valorToken;
+            cellValor.textContent = token.value;
 
             let cellDescripcion = row.insertCell(2);
-            cellDescripcion.textContent = description;
-        }
-
-
-
+            cellDescripcion.textContent = tokenDescriptions[token.type] || 'Descripción no disponible';
+        });
 
     } catch (error) {
         let errorMessage;
