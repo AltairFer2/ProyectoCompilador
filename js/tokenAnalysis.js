@@ -52,7 +52,19 @@ function declararVariable(nombre) {
     variablesDeclaradas.add(nombre);
 }
 
+const identificadoresGlobales = new Set([
+    "window", "document", "navigator", "screen", "history", "location",
+    "fetch", "localStorage", "sessionStorage", "alert", "confirm", "prompt",
+    "global", "process", "Buffer", "console", "module", "require",
+    "setTimeout", "clearTimeout", "setInterval", "clearInterval",
+    "URL", "URLSearchParams", "log"
+]);
+
+
 function usarVariable(nombre) {
+    if (identificadoresGlobales.has(nombre)) {
+        return true;  // Asume que es válido y no muestra error
+    }
     for (let i = scopeStack.length - 1; i >= 0; i--) {
         if (scopeStack[i].has(nombre)) {
             variablesUsadas.add(nombre);
@@ -62,6 +74,7 @@ function usarVariable(nombre) {
     errores.push(`Error semántico: La variable '${nombre}' no está declarada.`);
     return false;
 }
+
 
 function validarUsoDeVariables(nodo) {
     if (!nodo) return;
@@ -75,6 +88,11 @@ function validarUsoDeVariables(nodo) {
             });
             salirScope();
             break;
+        case 'MemberExpression':
+            if (!identificadoresGlobales.has(nodo.object.name)) {
+                usarVariable(nodo.object.name);
+            }
+            break;
         case 'Identifier':
             usarVariable(nodo.name);
             break;
@@ -85,6 +103,7 @@ function validarUsoDeVariables(nodo) {
         }
     }
 }
+
 
 function determinarTipo(nodo) {
     switch (nodo.type) {
@@ -137,34 +156,40 @@ function mostrarWarnings() {
 
 export function updateAnalysis() {
     const code = editor.getValue();
+    // Limpiar sección de errores sólo al inicio del análisis
     document.getElementById("errorSection").innerHTML = '';
+    errores.length = 0;  // Limpiar los errores previos
+
     try {
         const ast = esprima.parseScript(code, { tolerant: true });
         validarUsoDeVariables(ast);
         validarExpresiones(ast);
 
-        // Mostrar errores acumulados
-        errores.forEach(error => {
-            const errorMessage = `<span class="error-message">${error}</span>`;
-            document.getElementById("errorSection").innerHTML += errorMessage + '<br>';
-        });
-
-        const expresionBinaria = encontrarPrimerExpresionBinaria(ast);
-
-        if (expresionBinaria) {
-            const expresionNPI = aNotacionPolacaInversa(expresionBinaria);
-            document.getElementById("errorSection").innerHTML = `<span class="success-message">Expresión en Notación Polaca Inversa: ${expresionNPI}</span>`;
-        } else if (document.getElementById("errorSection").innerHTML === '') {
-            document.getElementById("errorSection").innerHTML = '<span class="success-message">Tu código compila correctamente</span>';
+        // Verificar si hay errores y mostrarlos
+        if (errores.length > 0) {
+            errores.forEach(error => {
+                const errorMessage = `<span class="error-message">${error}</span><br>`;
+                document.getElementById("errorSection").innerHTML += errorMessage;
+            });
+        } else {
+            // No hay errores, intentar mostrar la expresión binaria
+            const expresionBinaria = encontrarPrimerExpresionBinaria(ast);
+            if (expresionBinaria) {
+                const expresionNPI = aNotacionPolacaInversa(expresionBinaria);
+                document.getElementById("errorSection").innerHTML += `<span class="success-message">Expresión en Notación Polaca Inversa: ${expresionNPI}</span><br>`;
+            }
         }
 
-        // Mostrar advertencias
-        mostrarWarnings();
+        // Mostrar advertencias si no hay errores
+        if (document.getElementById("errorSection").innerHTML === '') {
+            document.getElementById("errorSection").innerHTML = '<span class="success-message">Tu código compila correctamente</span><br>';
+            mostrarWarnings();
+        }
 
+        // Siempre mostrar los tokens
         const tokens = esprima.tokenize(code, { range: true });
         let tokenTable = document.getElementById("tokenTable");
         tokenTable.innerHTML = '';
-
         let headerRow = tokenTable.insertRow(-1);
         let headers = ["Tipo de Token", "Valor", "Descripción"];
         headers.forEach(headerText => {
@@ -177,27 +202,15 @@ export function updateAnalysis() {
             let row = tokenTable.insertRow(-1);
             let cellTipo = row.insertCell(0);
             cellTipo.textContent = traducirTipoToken(token.type);
-
             let cellValor = row.insertCell(1);
             cellValor.textContent = token.value;
-
             let cellDescripcion = row.insertCell(2);
             cellDescripcion.textContent = tokenDescriptions[token.type] || 'Descripción no disponible';
         });
 
     } catch (error) {
-        let errorMessage;
-        // Revisa si el mensaje de error se ajusta a patrones conocidos de errores léxicos
-        if (error.message.includes('Invalid or unexpected token')) {
-            errorMessage = `<span class="error-message">Error léxico: token inválido o inesperado. ${error.message}</span>`;
-        } else if (error.message.includes('Unexpected character')) {
-            errorMessage = `<span class="error-message">Error léxico: carácter inesperado. ${error.message}</span>`;
-            // Añade más condiciones según sea necesario
-        } else {
-            // Asume que cualquier otro tipo de error es sintáctico
-            errorMessage = `<span class="error-message">Error sintáctico: ${error.message}</span>`;
-        }
-        document.getElementById("errorSection").innerHTML = errorMessage;
+        let errorMessage = `<span class="error-message">Error de análisis: ${error.message}</span><br>`;
+        document.getElementById("errorSection").innerHTML += errorMessage;
     }
 }
 

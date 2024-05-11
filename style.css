@@ -40,11 +40,21 @@ body {
 
 #errorSection {
     height: 20vh;
-    border: 2px solid black;
-    margin: 7px;
+    min-height: 50px;
+    /* Altura mínima inicial */
+    max-height: 20vh;
+    /* Altura máxima para permitir el desplazamiento */
+    overflow-y: auto;
+    /* Permite desplazamiento vertical si el contenido excede max-height */
     padding: 10px;
+    margin-left: 30px;
+    margin-bottom: 20px;
+    border: 1px solid black;
+    /* Añade un borde ligero para visualización */
     background-color: #d0d0d0;
+    /* Color de fondo ligero */
 }
+
 
 .success-message {
     color: green;
