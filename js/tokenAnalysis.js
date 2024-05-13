@@ -76,34 +76,42 @@ function usarVariable(nombre) {
 }
 
 
+// Función corregida para validar variables dentro del ámbito adecuado.
 function validarUsoDeVariables(nodo) {
     if (!nodo) return;
     switch (nodo.type) {
         case 'VariableDeclaration':
+            // Entrar en un nuevo ámbito si es necesario
             entrarScope();
             nodo.declarations.forEach(decl => {
                 if (decl.id && decl.id.name) {
-                    declararVariable(decl.id.name);
+                    declararVariable(decl.id.name); // Declarar variables
                 }
             });
-            salirScope();
             break;
         case 'MemberExpression':
-            if (!identificadoresGlobales.has(nodo.object.name)) {
-                usarVariable(nodo.object.name);
+            // Verificar si el objeto es un identificador y no está en los identificadores globales
+            if (nodo.object && nodo.object.type === 'Identifier' && !identificadoresGlobales.has(nodo.object.name)) {
+                usarVariable(nodo.object.name); // Usar la variable identificada
             }
             break;
         case 'Identifier':
-            usarVariable(nodo.name);
+            usarVariable(nodo.name); // Verificar uso de identificadores
             break;
     }
+
+    // Validar recursivamente todos los sub-nodos
     for (let prop in nodo) {
         if (nodo.hasOwnProperty(prop) && typeof nodo[prop] === 'object') {
             validarUsoDeVariables(nodo[prop]);
         }
     }
-}
 
+    // Salir del ámbito después de procesar todas las declaraciones
+    if (nodo.type === 'VariableDeclaration') {
+        salirScope();
+    }
+}
 
 function determinarTipo(nodo) {
     switch (nodo.type) {
@@ -113,12 +121,14 @@ function determinarTipo(nodo) {
             if (typeof nodo.value === 'string') return 'string';
             return 'unknown';
         case 'Identifier':
-            // Lógica simplificada para retornar un tipo predefinido
-            return 'number';
+            // Retorna 'unknown' si el tipo no es claro
+            return 'unknown';
         default:
             return 'unknown';
     }
 }
+
+
 
 function validarExpresiones(nodo) {
     if (!nodo) return;
