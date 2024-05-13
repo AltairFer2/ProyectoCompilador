@@ -240,5 +240,5 @@ const identificadoresGlobales = new Set([
     "fetch", "localStorage", "sessionStorage", "alert", "confirm", "prompt",
     "global", "process", "Buffer", "console", "module", "require",
     "setTimeout", "clearTimeout", "setInterval", "clearInterval",
-    "URL", "URLSearchParams", "log"
+    "URL", "URLSearchParams", "log", "length"
 ]);
