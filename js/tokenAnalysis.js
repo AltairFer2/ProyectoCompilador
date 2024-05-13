@@ -102,6 +102,14 @@ function validarUsoDeVariables(nodo) {
                 }
             });
             break;
+        case 'FunctionDeclaration':
+            // Registra la función como una variable declarada en el ámbito actual.
+            entrarScope(true);  // Suponemos que cada función crea un nuevo ámbito.
+            declararVariable(nodo.id.name, 'function');  // 'function' como tipo especial
+            nodo.params.forEach(param => {
+                declararVariable(param.name, 'param');
+            });
+            break;
         case 'Identifier':
             usarVariable(nodo.name);
             break;
