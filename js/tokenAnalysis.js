@@ -16,7 +16,6 @@ function aNotacionPolacaInversa(nodo) {
             const izquierda = aNotacionPolacaInversa(nodo.left);
             const derecha = aNotacionPolacaInversa(nodo.right);
             return `${izquierda} ${derecha} ${nodo.operator}`;
-        // Agrega más casos según sea necesario.
         default:
             return '';
     }
@@ -37,81 +36,90 @@ function encontrarPrimerExpresionBinaria(nodo) {
     return null;
 }
 
-function entrarScope() {
-    scopeStack.push(new Set());
+// Inicializar el ámbito global al inicio del análisis
+if (scopeStack.length === 0) {
+    entrarScope(true);  // Suponiendo que el primer ámbito es global y no es una función
+}
+
+function entrarScope(esFuncion = false) {
+    scopeStack.push({ variables: new Set(), varVariables: new Set(), esFuncion });
 }
 
 function salirScope() {
-    scopeStack.pop();
-}
-
-function declararVariable(nombre) {
     if (scopeStack.length > 0) {
-        scopeStack[scopeStack.length - 1].add(nombre);
+        scopeStack.pop();
+    } else {
+        console.error("Intento de salir de un ámbito cuando no hay ninguno en la pila.");
     }
-    variablesDeclaradas.add(nombre);
 }
 
-const identificadoresGlobales = new Set([
-    "window", "document", "navigator", "screen", "history", "location",
-    "fetch", "localStorage", "sessionStorage", "alert", "confirm", "prompt",
-    "global", "process", "Buffer", "console", "module", "require",
-    "setTimeout", "clearTimeout", "setInterval", "clearInterval",
-    "URL", "URLSearchParams", "log"
-]);
+function declararVariable(nombre, tipo = 'let') {
+    if (scopeStack.length === 0) {
+        console.error("No hay ámbitos disponibles para declarar la variable.");
+        return;
+    }
+    let currentScope = scopeStack[scopeStack.length - 1];
+    if (tipo === 'var' && !currentScope.esFuncion) {
+        // Agregar al ámbito global si estamos en un bloque y es 'var'
+        scopeStack[0].variables.add(nombre);
+    } else {
+        currentScope.variables.add(nombre);
+    }
+    console.log(`Variable declarada: ${nombre}`);
+}
+
 
 
 function usarVariable(nombre) {
-    if (identificadoresGlobales.has(nombre)) {
-        return true;  // Asume que es válido y no muestra error
-    }
     for (let i = scopeStack.length - 1; i >= 0; i--) {
-        if (scopeStack[i].has(nombre)) {
+        if (scopeStack[i].variables.has(nombre) || scopeStack[i].varVariables.has(nombre)) {
             variablesUsadas.add(nombre);
+            console.log(`Variable usada: ${nombre}`);
             return true;
         }
+    }
+    if (identificadoresGlobales.has(nombre)) {
+        return true;
     }
     errores.push(`Error semántico: La variable '${nombre}' no está declarada.`);
     return false;
 }
 
-
-// Función corregida para validar variables dentro del ámbito adecuado.
 function validarUsoDeVariables(nodo) {
     if (!nodo) return;
+
+    // Controlar ámbito para bloques y funciones
+    let necesitaNuevoScope = nodo.type === 'BlockStatement' || nodo.type === 'FunctionDeclaration';
+    if (necesitaNuevoScope) {
+        entrarScope(nodo.type === 'FunctionDeclaration');
+    }
+
     switch (nodo.type) {
         case 'VariableDeclaration':
-            // Entrar en un nuevo ámbito si es necesario
-            entrarScope();
             nodo.declarations.forEach(decl => {
                 if (decl.id && decl.id.name) {
-                    declararVariable(decl.id.name); // Declarar variables
+                    declararVariable(decl.id.name, decl.kind);
                 }
             });
             break;
-        case 'MemberExpression':
-            // Verificar si el objeto es un identificador y no está en los identificadores globales
-            if (nodo.object && nodo.object.type === 'Identifier' && !identificadoresGlobales.has(nodo.object.name)) {
-                usarVariable(nodo.object.name); // Usar la variable identificada
-            }
-            break;
         case 'Identifier':
-            usarVariable(nodo.name); // Verificar uso de identificadores
+            usarVariable(nodo.name);
             break;
+        // Añade más casos según sea necesario
     }
 
-    // Validar recursivamente todos los sub-nodos
-    for (let prop in nodo) {
-        if (nodo.hasOwnProperty(prop) && typeof nodo[prop] === 'object') {
-            validarUsoDeVariables(nodo[prop]);
+    // Recorrer nodos hijos
+    Object.keys(nodo).forEach(key => {
+        if (typeof nodo[key] === 'object' && nodo[key] !== null) {
+            validarUsoDeVariables(nodo[key]);
         }
-    }
+    });
 
-    // Salir del ámbito después de procesar todas las declaraciones
-    if (nodo.type === 'VariableDeclaration') {
+    if (necesitaNuevoScope) {
         salirScope();
     }
 }
+
 
 function determinarTipo(nodo) {
     switch (nodo.type) {
@@ -121,14 +129,11 @@ function determinarTipo(nodo) {
             if (typeof nodo.value === 'string') return 'string';
             return 'unknown';
         case 'Identifier':
-            // Retorna 'unknown' si el tipo no es claro
             return 'unknown';
         default:
             return 'unknown';
     }
 }
-
-
 
 function validarExpresiones(nodo) {
     if (!nodo) return;
@@ -145,7 +150,6 @@ function validarExpresiones(nodo) {
                 errores.push(`Error de tipo: Operación booleana ${nodo.operator} entre tipos no booleanos.`);
             }
         }
-        // Sobrecarga del operador '+'
         if (nodo.operator === '+' && (tipoIzq === 'string' || tipoDer === 'string')) {
             console.log('Warning: Sobrecarga del operador + para concatenación de cadenas.');
         }
@@ -155,7 +159,6 @@ function validarExpresiones(nodo) {
 }
 
 function mostrarWarnings() {
-    // Variables declaradas pero no usadas
     variablesDeclaradas.forEach(varName => {
         if (!variablesUsadas.has(varName)) {
             console.log(`Warning: La variable '${varName}' está declarada pero no usada.`);
@@ -163,26 +166,23 @@ function mostrarWarnings() {
     });
 }
 
-
 export function updateAnalysis() {
     const code = editor.getValue();
-    // Limpiar sección de errores sólo al inicio del análisis
     document.getElementById("errorSection").innerHTML = '';
-    errores.length = 0;  // Limpiar los errores previos
+    errores.length = 0;
 
     try {
         const ast = esprima.parseScript(code, { tolerant: true });
+        console.log("AST generado: ", ast);
         validarUsoDeVariables(ast);
         validarExpresiones(ast);
 
-        // Verificar si hay errores y mostrarlos
         if (errores.length > 0) {
             errores.forEach(error => {
                 const errorMessage = `<span class="error-message">${error}</span><br>`;
                 document.getElementById("errorSection").innerHTML += errorMessage;
             });
         } else {
-            // No hay errores, intentar mostrar la expresión binaria
             const expresionBinaria = encontrarPrimerExpresionBinaria(ast);
             if (expresionBinaria) {
                 const expresionNPI = aNotacionPolacaInversa(expresionBinaria);
@@ -190,13 +190,11 @@ export function updateAnalysis() {
             }
         }
 
-        // Mostrar advertencias si no hay errores
         if (document.getElementById("errorSection").innerHTML === '') {
             document.getElementById("errorSection").innerHTML = '<span class="success-message">Tu código compila correctamente</span><br>';
             mostrarWarnings();
         }
 
-        // Siempre mostrar los tokens
         const tokens = esprima.tokenize(code, { range: true });
         let tokenTable = document.getElementById("tokenTable");
         tokenTable.innerHTML = '';
@@ -229,3 +227,11 @@ export function adjustEditorHeight(editorInstance) {
     editorInstance.getWrapperElement().style.height = newHeight;
     editorInstance.refresh();
 }
+
+const identificadoresGlobales = new Set([
+    "window", "document", "navigator", "screen", "history", "location",
+    "fetch", "localStorage", "sessionStorage", "alert", "confirm", "prompt",
+    "global", "process", "Buffer", "console", "module", "require",
+    "setTimeout", "clearTimeout", "setInterval", "clearInterval",
+    "URL", "URLSearchParams", "log"
+]);
