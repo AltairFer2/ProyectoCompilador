@@ -173,7 +173,6 @@ export function updateAnalysis() {
 
     try {
         const ast = esprima.parseScript(code, { tolerant: true });
-        console.log("AST generado: ", ast);
         validarUsoDeVariables(ast);
         validarExpresiones(ast);
 
