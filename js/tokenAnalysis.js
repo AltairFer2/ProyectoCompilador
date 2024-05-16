@@ -59,7 +59,15 @@ function declararVariable(nombre, tipo = 'let') {
         return;
     }
     let currentScope = scopeStack[scopeStack.length - 1];
-    if (tipo === 'var' && !currentScope.esFuncion) {
+    if (tipo === 'function') {
+        // Asegurarse de que las funciones sean tratadas como hoisted al ámbito más cercano de la función
+        let funcScope = scopeStack.find(scope => scope.esFuncion);
+        if (funcScope) {
+            funcScope.variables.add(nombre);
+        } else {
+            scopeStack[0].variables.add(nombre);  // Añadir al ámbito global si no hay ámbito de función
+        }
+    } else if (tipo === 'var' && !currentScope.esFuncion) {
         // Agregar al ámbito global si estamos en un bloque y es 'var'
         scopeStack[0].variables.add(nombre);
     } else {
@@ -103,15 +111,29 @@ function validarUsoDeVariables(nodo) {
             });
             break;
         case 'FunctionDeclaration':
-            // Registra la función como una variable declarada en el ámbito actual.
+            declararFuncion(nodo.id.name, nodo.params);
             entrarScope(true);  // Suponemos que cada función crea un nuevo ámbito.
-            declararVariable(nodo.id.name, 'function');  // 'function' como tipo especial
+
             nodo.params.forEach(param => {
                 declararVariable(param.name, 'param');
             });
             break;
         case 'Identifier':
             usarVariable(nodo.name);
+            break;
+        case 'CallExpression':
+            // Manejo de CallExpression cuando es un miembro de un objeto
+            if (nodo.callee.type === 'MemberExpression') {
+                if (nodo.callee.object && nodo.callee.property) {
+                    // Ejemplo: objeto.método()
+                    usarVariable(nodo.callee.object.name);  // Verifica el objeto
+                    // opcionalmente verifica el método si es necesario: usarVariable(nodo.callee.property.name);
+                }
+            } else if (nodo.callee.type === 'Identifier') {
+                const nombreFuncion = nodo.callee.name;
+                const argsCount = nodo.arguments.length;
+                validarFuncionYArgs(nombreFuncion, argsCount);
+            }
             break;
         // Añade más casos según sea necesario
     }
@@ -169,10 +191,12 @@ function validarExpresiones(nodo) {
 function mostrarWarnings() {
     variablesDeclaradas.forEach(varName => {
         if (!variablesUsadas.has(varName)) {
-            console.log(`Warning: La variable '${varName}' está declarada pero no usada.`);
+            const warningMessage = `<span class="warning-message" style="color: yellow;">Warning: La variable '${varName}' está declarada pero no usada.</span><br>`;
+            document.getElementById("errorSection").innerHTML += warningMessage;
         }
     });
 }
+
 
 export function updateAnalysis() {
     const code = editor.getValue();
@@ -242,3 +266,21 @@ const identificadoresGlobales = new Set([
     "setTimeout", "clearTimeout", "setInterval", "clearInterval",
     "URL", "URLSearchParams", "log", "length"
 ]);
+
+const funcionesDeclaradas = new Map();  // Almacena las funciones y la cantidad de parámetros que esperan
+
+function declararFuncion(nombre, parametros) {
+    funcionesDeclaradas.set(nombre, parametros.length);
+    declararVariable(nombre, 'function'); // También registra la función como una variable (si aún no está registrado)
+}
+
+function validarFuncionYArgs(nombre, argsCount) {
+    const parametrosEsperados = funcionesDeclaradas.get(nombre);
+    if (parametrosEsperados !== undefined) {
+        if (parametrosEsperados !== argsCount) {
+            errores.push(`Error semántico: La función '${nombre}' espera ${parametrosEsperados} argumentos, pero se proporcionaron ${argsCount}.`);
+        }
+    } else {
+        errores.push(`Error semántico: La función '${nombre}' no está declarada.`);
+    }
+}
