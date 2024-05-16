@@ -38,7 +38,7 @@ function encontrarPrimerExpresionBinaria(nodo) {
 
 // Inicializar el ámbito global al inicio del análisis
 if (scopeStack.length === 0) {
-    entrarScope(true);  // Suponiendo que el primer ámbito es global y no es una función
+    entrarScope(true);
 }
 
 function entrarScope(esFuncion = false) {
