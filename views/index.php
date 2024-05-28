@@ -9,20 +9,16 @@
     <link rel="stylesheet" href="../public/css/style.css">
 </head>
 
-<body>    
+<body>
     <div id="TableContainer">
         <button id="runButton">Run Code</button>
-        <table id="tokenTable" class="tokenTable">        
-        </table>
-        <a class="download-link" href="http://localhost:3000/download-binary" download="output_binary">Descargar codigo binario compilado</a>
+        <table id="tokenTable" class="tokenTable"></table>
     </div>
     <div class="editor-errors-container">
         <div id="editor"></div>
-        <div id="errorSection"></div>       
-         
-    </div>   
+        <div id="errorSection"></div>
+    </div>
     <script type="module" src="../public/js/editor.js"></script>
-
 </body>
 
 </html>

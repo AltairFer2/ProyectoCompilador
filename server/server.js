@@ -10,8 +10,9 @@ const cors = require('cors');
 
 app.use(cors()); // Permitir solicitudes de origen cruzado
 
-// Middleware para parsear JSON
+// Middleware para parsear JSON y texto plano
 app.use(express.json());
+app.use(express.text());
 
 function logAndSendError(res, message, error) {
     console.error(message);
@@ -21,13 +22,9 @@ function logAndSendError(res, message, error) {
 
 // Ruta para compilar el código
 app.post('/compile', (req, res) => {
-    if (!req.body || !req.body.code) {
-        console.error('No code provided');
-        return res.status(400).send('No code provided');
-    }
-
-    const codePath = path.resolve('../server/temp', 'input.js');
-    const outputPath = path.resolve('../server/bin', 'output.bin'); // Especificar nombre completo del archivo de salida
+    const code = req.body; // El código se envía como texto plano
+    const codePath = path.resolve('temp', 'input.js');
+    const outputPath = path.resolve('bin', 'output.bin');
 
     // Asegúrate de que las carpetas existan
     if (!fs.existsSync(path.dirname(codePath))) {
@@ -38,36 +35,17 @@ app.post('/compile', (req, res) => {
     }
 
     // Guarda el código en un archivo
-    try {
-        fs.writeFileSync(codePath, req.body.code);
-    } catch (error) {
-        return logAndSendError(res, 'Error writing code to file', error);
-    }
-
-    console.log(`Compilando código en ${codePath}...`);
+    fs.writeFileSync(codePath, code);
 
     // Comando para compilar a código máquina
     const command = `nectar ${codePath} --target native -o ${outputPath}`;
-    console.log(`Ejecutando comando: ${command}`);
-
-    exec(command, { cwd: process.cwd() }, (error, stdout, stderr) => {
+    exec(command, (error, stdout, stderr) => {
         if (error) {
             console.error(`Error en la compilación: ${stderr}`);
             return res.status(500).send(`Compilation error: ${stderr}`);
         }
-        console.log(`stdout: ${stdout}`);
-        res.send(`Compilation successful, binary created at ${outputPath}`);
+        res.send(`Archivo binario creado en ${outputPath}`);
     });
-});
-
-// Ruta para descargar el binario
-app.get('/download-binary', (req, res) => {
-    const filePath = path.resolve('../server/bin', 'output.bin');
-    if (fs.existsSync(filePath)) {
-        res.download(filePath);
-    } else {
-        res.status(404).send('Binary file not found');
-    }
 });
 
 // Servir archivos estáticos

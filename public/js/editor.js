@@ -14,33 +14,26 @@ editor.on("change", function () {
 
 // Redefine console.log to capture output
 (function () {
-    var oldLog = console.log;
+    var originalLog = console.log;
     console.log = function (message) {
-        document.getElementById("errorSection").innerText += message + "\n"; // Ensure it captures correctly
-        oldLog.apply(console, arguments);
+        var errorSection = document.getElementById("errorSection");
+        if (!errorSection.innerText.includes(message)) {
+            errorSection.innerText += message + "\n";
+        }
+        originalLog.apply(console, arguments);
     };
 })();
 
 document.getElementById("runButton").addEventListener("click", function () {
     var code = editor.getValue();
-    fetch('/php/proyecto/ProyectoCompilador/compile', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ code: code })
-    })
-        .then(response => response.text())
-        .then(data => {
-            document.getElementById("errorSection").innerText = data;
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById("errorSection").innerText = "Error en la compilación: " + error;
-        });
+    document.getElementById("errorSection").innerText = ""; // Limpiar la sección de errores
+
+    try {
+        eval(code); // Ejecutar el código JavaScript
+    } catch (error) {
+        console.error(error); // Mostrar errores en la sección de errores
+    }
 });
-
-
 
 // Initial update
 updateAnalysis();
