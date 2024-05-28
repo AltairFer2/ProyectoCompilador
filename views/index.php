@@ -12,13 +12,17 @@
 <body>
     <div id="TableContainer">
         <button id="runButton">Run Code</button>
-        <table id="tokenTable" class="tokenTable"></table>
+        <table id="tokenTable" class="tokenTable">
+        </table>
+        <a id="downloadLink" class="download-link" href="#" style="display:none;"
+            download="intermediateCode.js">Download Intermediate Code</a>
     </div>
     <div class="editor-errors-container">
         <div id="editor"></div>
         <div id="errorSection"></div>
     </div>
     <script type="module" src="../public/js/editor.js"></script>
+
 </body>
 
 </html>

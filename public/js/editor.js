@@ -33,6 +33,27 @@ document.getElementById("runButton").addEventListener("click", function () {
     } catch (error) {
         console.error(error); // Mostrar errores en la sección de errores
     }
+
+    // Enviar el código al servidor para generar el archivo intermedio
+    fetch('/generate', {
+        method: 'POST',
+        body: code,
+        headers: {
+            'Content-Type': 'text/plain'
+        }
+    })
+        .then(response => response.text())
+        .then(data => {
+            console.log(data); // Mostrar el mensaje de éxito en la consola
+            // Actualizar el enlace de descarga
+            var downloadLink = document.getElementById("downloadLink");
+            downloadLink.href = '/download-intermediate';
+            downloadLink.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById("errorSection").innerText = "Error en la generación del archivo: " + error;
+        });
 });
 
 // Initial update

@@ -10,7 +10,7 @@ const cors = require('cors');
 
 app.use(cors()); // Permitir solicitudes de origen cruzado
 
-// Middleware para parsear JSON y texto plano
+// Middleware para parsear JSON
 app.use(express.json());
 app.use(express.text());
 
@@ -20,32 +20,33 @@ function logAndSendError(res, message, error) {
     res.status(500).send(message);
 }
 
-// Ruta para compilar el código
-app.post('/compile', (req, res) => {
-    const code = req.body; // El código se envía como texto plano
-    const codePath = path.resolve('temp', 'input.js');
-    const outputPath = path.resolve('bin', 'output.bin');
+app.post('/generate', (req, res) => {
+    const code = req.body; // Asume que el código a compilar se envía como texto plano
+    const codePath = path.join(__dirname, 'temp', 'input.js');
+    const intermediateCodePath = path.join(__dirname, 'temp', 'intermediateCode.js');
 
     // Asegúrate de que las carpetas existan
     if (!fs.existsSync(path.dirname(codePath))) {
         fs.mkdirSync(path.dirname(codePath), { recursive: true });
     }
-    if (!fs.existsSync(path.dirname(outputPath))) {
-        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    }
 
     // Guarda el código en un archivo
-    fs.writeFileSync(codePath, code);
+    try {
+        fs.writeFileSync(codePath, code);
+        // Simulación de conversión a código intermedio
+        const intermediateCode = `Intermedio:\n${code}`;
+        fs.writeFileSync(intermediateCodePath, intermediateCode);
+    } catch (error) {
+        return logAndSendError(res, 'Error writing code to file', error);
+    }
 
-    // Comando para compilar a código máquina
-    const command = `nectar ${codePath} --target native -o ${outputPath}`;
-    exec(command, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error en la compilación: ${stderr}`);
-            return res.status(500).send(`Compilation error: ${stderr}`);
-        }
-        res.send(`Archivo binario creado en ${outputPath}`);
-    });
+    res.send('Archivo generado exitosamente en ' + intermediateCodePath);
+});
+
+// Ruta para descargar el archivo intermedio
+app.get('/download-intermediate', (req, res) => {
+    const filePath = path.join(__dirname, 'temp', 'intermediateCode.js');
+    res.download(filePath);
 });
 
 // Servir archivos estáticos
