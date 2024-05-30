@@ -2,50 +2,48 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const binPath = path.join(__dirname, 'output.bin');
-const exePath = path.join(__dirname, 'ejecutar_bin.exe');
+const intermediateCodePath = path.join(__dirname, 'temp', 'intermediateCode.js');
+const cPath = path.join(__dirname, 'prueba.c');
+const exePath = path.join(__dirname, 'bin', 'ejecutar_bin.exe');
 
-// Escribir un archivo temporal para el código C que ejecuta el binario
-const cCode = `
+// Leer el código intermedio de JavaScript
+fs.readFile(intermediateCodePath, 'utf8', (err, data) => {
+    if (err) {
+        console.error(`Error leyendo el archivo de código intermedio: ${err}`);
+        return;
+    }
+
+    // Convertir el código JavaScript en código C
+    const cCode = `
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 int main() {
-    FILE *file = fopen("${binPath}", "rb");
-    if (!file) {
-        perror("No se puede abrir el archivo .bin");
-        return 1;
-    }
-
-    fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
-    rewind(file);
-
-    char *buffer = (char*)malloc(fileSize);
-    if (!buffer) {
-        perror("No se puede asignar memoria");
-        fclose(file);
-        return 1;
-    }
-
-    fread(buffer, 1, fileSize, file);
-    fclose(file);
-
-    printf("%s", buffer);
-
-    free(buffer);
+    // Imprimir el contenido del archivo .js
+    printf("${data.replace(/"/g, '\\"').replace(/\n/g, '\\n')}\\n");
+    
+    // Delay de un minuto (60 segundos)
+    sleep(60);
+    
     return 0;
 }
 `;
 
-const cPath = path.join(__dirname, 'ejecutar_bin.c');
-fs.writeFileSync(cPath, cCode);
+    // Escribir el código C a un archivo
+    fs.writeFile(cPath, cCode, (err) => {
+        if (err) {
+            console.error(`Error escribiendo el archivo C: ${err}`);
+            return;
+        }
 
-// Compilar el código C a un .exe usando MinGW
-exec(`gcc -o ${exePath} ${cPath}`, (error, stdout, stderr) => {
-    if (error) {
-        console.error(`Error en la compilación: ${stderr}`);
-        return;
-    }
-    console.log(`Archivo .exe generado exitosamente: ${exePath}`);
+        // Compilar el código C a un .exe usando MinGW
+        exec(`gcc -o ${exePath} ${cPath}`, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error en la compilación: ${stderr}`);
+                return;
+            }
+            console.log(`Archivo .exe generado exitosamente: ${exePath}`);
+        });
+    });
 });

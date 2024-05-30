@@ -22,7 +22,7 @@ function logAndSendError(res, message, error) {
 
 app.post('/generate', (req, res) => {
     const code = req.body; // Asume que el código a compilar se envía como texto plano
-    const codePath = path.join(__dirname, 'temp', 'input.js');
+    const codePath = path.join(__dirname, 'temp', 'input.c');
     const intermediateCodePath = path.join(__dirname, 'temp', 'intermediateCode.js');
 
     // Asegúrate de que las carpetas existan
